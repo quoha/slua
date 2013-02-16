@@ -1,5 +1,5 @@
 //==============================================================================
-// slua/src/bin/slua/main.c
+// slua/src/bin/slua/readFile.c
 //
 // This file is part of slua (http://github.com/quoha/slua).
 // 
@@ -25,18 +25,40 @@
 //==============================================================================
 
 #include "local.h"
+
 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <ctype.h>
+#include <sys/stat.h>
 
 //==============================================================================
 //
-static const char *pmProgram = "slua";
-static const char *pmPkgVer  = "" PM_ID_VER "";
-static const char *pmPkgDttm = "" __DATE__ " at " __TIME__ "";
+char *ReadFile(const char *fileName) {
+  struct stat statBuf;
+  if (stat(fileName, &statBuf) != 0) {
+    return 0;
+  }
 
-//==============================================================================
-//
-int main(int argc, char *argv[]) {
-	printf(" info:\t%s version %s compiled on %s\n", pmProgram, pmPkgVer, pmPkgDttm);
+  int actLength = (int)statBuf.st_size;
 
-	return 2;
+  char *data = malloc(sizeof(char) * (actLength + 1));
+  if (data && actLength > 0) {
+    // read the file if it isn't empty
+    //
+    FILE *fp = fopen(fileName, "r");
+    if (!fp || fread(data, actLength, 1, fp) != 1) {
+      free(data);
+      data = 0;
+    }
+    if (fp) {
+      fclose(fp);
+    }
+  }
+
+  if (data) {
+    data[actLength] = 0;
+  }
+
+  return data;
 }

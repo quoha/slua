@@ -1,5 +1,5 @@
 //==============================================================================
-// slua/src/bin/slua/main.c
+// slua/src/bin/slua/local.h
 //
 // This file is part of slua (http://github.com/quoha/slua).
 // 
@@ -24,19 +24,9 @@
 // DEALINGS IN THE SOFTWARE.
 //==============================================================================
 
-#include "local.h"
-#include <stdio.h>
+#ifndef slua_src_bin_slua_local_H
+#define slua_src_bin_slua_local_H
 
-//==============================================================================
-//
-static const char *pmProgram = "slua";
-static const char *pmPkgVer  = "" PM_ID_VER "";
-static const char *pmPkgDttm = "" __DATE__ " at " __TIME__ "";
+char *ReadFile(const char *fileName);
 
-//==============================================================================
-//
-int main(int argc, char *argv[]) {
-	printf(" info:\t%s version %s compiled on %s\n", pmProgram, pmPkgVer, pmPkgDttm);
-
-	return 2;
-}
+#endif
