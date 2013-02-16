@@ -1,0 +1,213 @@
+/*===========================================================================
+** slua/Howto.cook
+**
+** This file is part of slua (http://github.com/quoha/slua).
+**
+** Copyright (c) 2013 Michael D Henderson
+**
+** Permission is hereby granted, free of charge, to any person obtaining a
+** copy of this software and associated documentation files (the "Software"),
+** to deal in the Software without restriction, including without limitation
+** the rights to use, copy, modify, merge, publish, distribute, sublicense,
+** and/or sell copies of the Software, and to permit persons to whom the
+** Software is furnished to do so, subject to the following conditions:
+**
+** The above copyright notice and this permission notice shall be included
+** in all copies or substantial portions of the Software.
+**
+** THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+** OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+** FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+** THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+** LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+** FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+** DEALINGS IN THE SOFTWARE.
+**/
+set tell-position;
+
+/*===========================================================================
+ * search for "^all:" to quickly get to the section to customize
+ */
+pmLocalRoot = /Users/mdhender/local/;
+bin/slua.exe/CcFlags = -I[pmLocalRoot]include;
+bin/slua.exe/LdFlags = -L[pmLocalRoot]lib -llua;
+
+/*===========================================================================
+ * project variables
+ */
+pmProject  = slua;
+pmSlogan   = a simple lua template;
+pmAuthor   = Michael D Henderson;
+pmVerMajor = 00;
+pmVerMinor = 000;
+pmVerPatch = 0000;
+
+/*===========================================================================
+ * package identification Strings
+ */
+pmVersion      = [pmVerMajor].[pmVerMinor].[pmVerPatch];
+pmVersionFlags = [catenate -DPM_ID_VER\= '\'"' [pmVersion] '"\'']
+                 [catenate -DPM_ID_FILE\= "'" '"@(#)"__DATE__" "__TIME__" "__FILE__' "'"]
+                 [catenate -DPM_ID_STRING\= "'" '"@(#)' [pmProject]-[pmVersion] ' " ' '__DATE__ " " __TIME__ " " __FILE__' "'" ]
+                 ;
+function print [pmProject] - [pmVersion] - [pmSlogan];
+
+/*===========================================================================
+ * utility paths
+ */
+if [not [defined ar      ]] then ar       = [find_command ar];
+if [not [defined delete  ]] then delete   = tools/delete;
+if [not [defined manifest]] then manifest = tools/manifest;
+if [not [defined ranlib  ]] then ranlib   = [find_command ranlib];
+if [not [defined sstrip  ]] then striplib = [find_command strip ];
+if [not [defined testsh  ]] then testsh   = tools/testsh;
+
+/*===========================================================================
+ * allow cook to generate the list of sources files that we have
+ */
+pmAllDirs      = [stripdot [collect [manifest] --dir  ]];
+pmAllFiles     = [stripdot [collect [manifest] --file ]];
+pmAllTargets   = ;
+pmAllDepFiles  = ;
+pmAllBinaries  = ;
+pmAllLibraries = ;
+pmAllTests     = ;
+
+
+/*===========================================================================
+ * make "cook all" the default action
+ */
+all:: {
+  function print "-info: taking default action of 'cook all'";
+}
+
+/*===========================================================================
+ * external libraries for the entire project
+ */
+pmExtComp = ;
+pmExtIncl = ;
+pmExtLibs = ;
+
+/*===========================================================================
+ */
+pmListBinaries  = [match_mask src/bin/% [pmAllDirs]];
+pmListLibraries = [match_mask src/lib/% [pmAllDirs]];
+pmListTests     = [match_mask src/chk/% [pmAllDirs]];
+
+/*===========================================================================
+ * build a list of all the targets for this project
+ */
+pmDepFiles = ;
+pmTargets  = ;
+loop local d = [pmListBinaries] {
+	local tgt    = bin/[fromto %0% % [d]].exe;
+	[tgt]/Type   = bin;
+	[tgt]/SrcDir = [d]/;
+	pmTargets   += [tgt];
+}
+
+loop local d = [pmListLibraries] {
+	local tgt    = lib/lib[fromto %0% % [d]].a;
+	[tgt]/Type   = lib;
+	[tgt]/SrcDir = [d]/;
+	pmTargets   += [tgt];
+}
+
+loop local tgt = [pmTargets] {
+	if [not [defined [tgt]/CcFlags]] then { [tgt]/CcFlags =       ; }
+	if [not [defined [tgt]/LdDep  ]] then { [tgt]/LdDep   =       ; }
+	if [not [defined [tgt]/LdFlags]] then { [tgt]/LdFlags =       ; }
+	if [not [defined [tgt]/LdFiles]] then { [tgt]/LdFiles =       ; }
+
+	[tgt]/Target   = [tgt];
+	[tgt]/SrcFiles = [match_mask [[tgt]/SrcDir]%0%.c   [pmAllFiles]]
+	                 [match_mask [[tgt]/SrcDir]%0%.cpp [pmAllFiles]];
+	[tgt]/IncFiles = [match_mask [[tgt]/SrcDir]%0%.h   [pmAllFiles]]
+	                 [match_mask [[tgt]/SrcDir]%0%.hpp [pmAllFiles]];
+	[tgt]/ObjFiles = [fromto %0%.%1 %0%.o             [[tgt]/SrcFiles]];
+	[tgt]/DepFiles = [fromto %0%.%1 %0%.%1_dep        [[tgt]/SrcFiles]]
+					 [fromto %0%.%1 %0%.%1_dep        [[tgt]/IncFiles]];
+	pmDepFiles    += [[tgt]/DepFiles];
+
+	loop local tgtObject = [[tgt]/ObjFiles] {
+		[tgtObject]/CcFlags = [[tgt]/CcFlags];
+	}
+
+	echo "--" [tgt] set silent;
+	if [[tgt]/SrcDir    ] then { echo ".. SrcDir...." [[tgt]/SrcDir    ] set silent; }
+	if [[tgt]/SrcFiles  ] then { echo ".. SrcFiles.." [[tgt]/SrcFiles  ] set silent; }
+	if [[tgt]/IncFiles  ] then { echo ".. IncFiles.." [[tgt]/IncFiles  ] set silent; }
+	if [[tgt]/ObjFiles  ] then { echo ".. ObjFiles.." [[tgt]/ObjFiles  ] set silent; }
+	if [[tgt]/CcFlags   ] then { echo ".. CcFlags..." [[tgt]/CcFlags   ] set silent; }
+	if [[tgt]/LdFlags   ] then { echo ".. LdFlags..." [[tgt]/LdFlags   ] set silent; }
+	if [[tgt]/LdDep     ] then { echo ".. LdDep....." [[tgt]/LdDep     ] set silent; }
+	if [[tgt]/DepFiles  ] then { echo ".. DepFiles.." [[tgt]/DepFiles  ] set silent; }
+}
+
+/*===========================================================================
+ * compiler setup
+ */
+ccComp     = [find_command gcc];
+ccLink     = [ccComp];
+ccIncl     = [pmExtIncl];
+ccLibs     = ;
+ccCcFlags  = [pmVersionFlags] [pmExtLibs];
+ccLdFlags  = ;
+
+%0%.%1_dep: %0%.%1 set no-cascade {
+  c_incl --no-cache --no-recurs %0%.%1 -I[dirname %0%.%1] [ccIncl] "--prefix='cascade %0%.%1 = '" "--suffix=';'" -o [target] set silent;
+}
+
+%0%.o: %0%.c {
+  [ccComp] -I[dirname %0%.c] [ccIncl] [ccCcFlags] [[target]/CcFlags] -c %0%.c -o [target];
+}
+
+%0%.o: %0%.cpp {
+  [ccComp] -I[dirname %0%.c] [ccIncl] [ccCcFlags] [[target]/CcFlags] -c %0%.cpp -o [target];
+}
+
+bin/%.exe: [[target]/ObjFiles] [[target]/LdFiles] set unlink {
+  [ccComp] -o [target] [[target]/ObjFiles] [[target]/LdFlags] [ccLibs];
+}
+
+lib/lib%.a: [[target]/ObjFiles] [[target]/LdDep] set unlink {
+  [ar]  cq [target] [[target]/ObjFiles] set silent;
+  [ranlib] [target] set silent;
+}
+
+/*===========================================================================
+ * include dependency files created above
+ */
+#include-cooked-nowarn [pmDepFiles]
+
+/*===========================================================================
+ * cleaning utilities
+ */
+clean.bak: {
+  [delete] [match_mask %0%~ [pmAllFiles]] set silent;
+}
+clean.bin: {
+  [delete] [match_mask %0core [pmAllFiles]] [pmTargets] set silent;
+}
+clean.dep: {
+  [delete] [pmDepFiles] set silent;
+}
+clean.obj: {
+  [delete] [match_mask %0%.o [pmAllFiles]] set silent;
+}
+clean: clean.bak clean.bin clean.obj {
+  [delete] Howto.list set silent;
+}
+clobber: clean clean.dep;
+
+/*===========================================================================
+ */
+all:: [pmTargets] {
+  function print "----- complete - built all targets";
+}
+
+test: all {
+  function print "----- starting  tests...";
+  [testsh] pass bin/slua.exe;
+  function print "----- completed tests...";
+}
